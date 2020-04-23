@@ -26,3 +26,5 @@ predictors of sediment texture for mineral resources management.
 The paper can be downloaded in the following link:
 https://www.mdpi.com/2073-4441/11/6/1257
 
+You can find the code in classification_R and run it in R_studio. 
+
