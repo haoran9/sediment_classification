@@ -1,0 +1,195 @@
+below is the code for full model-all the six features are covered.
+(1) full model: primary(2)+ derived(4)
+(2)selected feature: 4
+(3) only 2 primary features
+
+ML methods: RF= Random Forest; CT= Classification Tree; Logit_Lasso= Logistic Lasso classification
+
+library(randomForest)
+library(psych)  # calculte the mean and deviation 
+
+# No need to choose the optimal value for mtry and tree size
+# Since RF is quite robust to these two parameters
+for (i in 1:nit){
+set.seed(i)
+ind <- sample(1:N,size=n,replace=F)
+fit <- randomForest(Sediment_Type ~ Backscatter+ Bathymetry +Roughness_bathymetry+ Rugosity_backscatter , data = dat, subset=ind, ntree = 100, importance = T)
+
+
+prd <- predict(fit,dat[-ind,])
+res1[i,1] <- length(which(prd!=dat$Sediment_Type[-ind]))/(N-n)
+res1[i,2:5] <- fit$importance[,4]
+
+}
+res1
+summary(res1)
+
+describe(res1,type=2)
+
+######## Bagging Trees ################################################################
+res2 <- matrix(0,nit,6) #1st column is test set error rate; rest are variable importance
+#colnames(res2) <- c("Misrate",names(dat)[-c(1,8,9)],"roc")
+
+for (i in 1:nit){
+set.seed(i)
+ind <- sample(1:N,size=n,replace=F)
+#fit <- randomForest(Sediment_Type  ~ .-ID -Sediment_Type_num, data = dat, mtry=6, subset=ind, ntree = 100, importance = T)
+fit_2 <- randomForest(Sediment_Type  ~ Backscatter+Bathymetry, data = dat, mtry=6, subset=ind, ntree = 100, importance = T)
+fit_3 <- randomForest(Sediment_Type  ~ Backscatter+ Bathymetry +Roughness_bathymetry+ Rugosity_backscatter, data = dat, mtry=6, subset=ind, ntree = 100, importance = T)
+
+
+prd <- predict(fit_2,dat[-ind,])
+res2[i,1] <- length(which(prd!=dat$Sediment_Type[-ind]))/(N-n)
+res2[i,2:5] <- fit_2$importance[,4]
+
+
+prd <- predict(fit_2,newdata=dat[-ind,],type="prob")
+tmp <- ROC(cbind(dat$Sediment_Type_num[-ind],prd[,2]))
+res2[i,6] <- ROC.score(tmp$Sen,tmp$Spe)
+
+
+}
+
+summary(res2)
+describe(res2,type=2)
+
+#################################################################################
+```{r logistic LASSO-Logit-Lasso1}
+######## Logistic LASSO ############
+
+library(caret)
+
+res3 <- matrix(0,nit,2) #1st column is test set error rate; next is AUC
+
+# This will take a few minutes for 10 iterations. Becaues it will search 
+# the tuning parameters lambda and alpha via CV 
+
+for (i in 1:nit)
+  {
+set.seed(i)
+ind <- sample(1:N,size=n,replace=F)
+cctrl1 <- trainControl(method="cv",number=5,returnResamp="all",
+                       classProbs=TRUE, summaryFunction=twoClassSummary)
+
+#fit<- train(dat[ind,2:7],dat[ind,8],method="glmnet",
+ #            trControl = cctrl1,metric = "ROC",
+  #           tuneGrid = expand.grid(alpha = seq(0,1,by=0.5),
+   #        lambda = 10^seq(-3,1,by=1)))
+
+fit_2<- train(dat[ind,2:3],dat[ind,8],method="glmnet",
+             trControl = cctrl1,metric = "ROC",
+             tuneGrid = expand.grid(alpha = seq(0,1,by=0.5),
+           lambda = 10^seq(-3,1,by=1)))
+
+#newdata=dat[-ind,2:9] # remove ID
+#newdata1=newdata[,-7] # REMOVE Sediment_Type
+
+prd <- predict(fit_2,newdata=dat[-ind,])
+res3[i,1] <- length(which(prd!=dat$Sediment_Type[-ind]))/(N-n)
+
+
+prd <- predict(fit_2,newdata=dat[-ind,],type="prob")
+
+tmp <- ROC(cbind(dat$Sediment_Type_num[-ind],prd[,2]))
+res3[i,2] <- ROC.score(tmp$Sen,tmp$Spe)
+                 
+}
+
+
+res3
+summary(res3)
+describe(res3,type=2)
+
+#############################################################################################
+```{r classification tree--DT1}
+res4 <- matrix(0,nit,2) #1st column is test set error rate; next is AUC
+
+# This will take a few minutes for 10 iterations. Becaues it will search 
+# the tuning parameter via 5-fold CV 
+
+for (i in 1:nit){
+set.seed(i)
+ind <- sample(1:N,size=n,replace=F)
+cctrl1 <- trainControl(method="cv",number=5,
+                       classProbs=T,summaryFunction=twoClassSummary)
+#fit <- train(Sediment_Type  ~ .-ID -Sediment_Type_num,dat[ind,],method="rpart",
+ #            trControl = cctrl1,metric = "ROC",
+  #           tuneLength = 20)
+
+
+fit_2 <- train(Sediment_Type~Backscatter+Bathymetry,dat[ind,],method="rpart",
+             trControl = cctrl1,metric = "ROC",
+            tuneLength = 20)
+
+#fit_3 <- train(CLASS~Backscatter+ bathheave1+rough_backsca5+rugged_backsca7,dat[ind,],method="rpart",
+            # trControl = cctrl1,metric = "ROC",
+            # tuneLength = 20)
+
+prd <- predict(fit_2,newdata=dat[-ind,])
+res4[i,1] <- length(which(prd!=dat$Sediment_Type[-ind]))/(N-n)
+
+
+
+prd <- predict(fit_2,newdata=dat[-ind,],type="prob")
+tmp <- ROC(cbind(dat$Sediment_Type_num[-ind],prd[,2]))
+res4[i,2] <- ROC.score(tmp$Sen,tmp$Spe)
+
+
+}
+
+res4
+summary(res4)
+describe(res4,type=2)
+
+
+##########################################################################################################
+```{r randomForest  RF2}
+
+library(randomForest)
+library(psych)  # calculte the mean and deviation 
+
+# No need to choose the optimal value for mtry and tree size
+# Since RF is quite robust to these two parameters
+for (i in 1:nit){
+set.seed(i)
+ind <- sample(1:N,size=n,replace=F)
+fit <- randomForest(Sediment_Type ~ .-ID -Sediment_Type_num, data = dat, subset=ind, ntree = 100, importance = T)
+#fit_2 <- randomForest(CLASS ~ Backscatter+ bathheave1, data = dat, subset=ind, ntree = 100, importance = T)
+
+#fit_3<- randomForest(CLASS ~ Backscatter+ bathheave1+rough_backsca5+rugged_backsca7, data = dat, subset=ind, ntree = 100, importance = T)
+
+prd <- predict(fit,dat[-ind,])
+res1[i,1] <- length(which(prd!=dat$Sediment_Type[-ind]))/(N-n)
+res1[i,2:7] <- fit$importance[,4]
+}
+res1
+summary(res1)
+
+describe(res1,type=2)
+
+
+
+######## Bagging Trees ############
+res2 <- matrix(0,nit,7) #1st column is test set error rate; rest are variable importance
+colnames(res2) <- c("Misrate",names(dat)[-c(1,8,9)])
+for (i in 1:nit){
+set.seed(i)
+ind <- sample(1:N,size=n,replace=F)
+#fit <- randomForest(CLASS ~ .-ID -CLASS_num, data = dat, mtry=6, subset=ind, ntree = 100, importance = T)
+
+#fit_2 <- randomForest(CLASS ~ Backscatter+ bathheave1, data = dat, mtry=6, subset=ind, ntree = 100, importance = T)
+fit_3 <- randomForest(CLASS ~ Backscatter+ bathheave1+rough_backsca5+rugged_backsca7, data = dat, mtry=6, subset=ind, ntree = 100, importance = T)
+
+prd <- predict(fit_3,dat[-ind,])
+res2[i,1] <- length(which(prd!=dat$CLASS[-ind]))/(N-n)
+#res2[i,2:7] <- fit$importance[,4]
+}
+
+res2
+summary(res2)
+describe(res2,type=2)
+
+
+
+
+
